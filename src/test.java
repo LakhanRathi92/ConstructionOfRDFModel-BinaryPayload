@@ -1,3 +1,4 @@
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -58,7 +59,7 @@ public class test {
 	//	publishedUIDs.add(123); // 0
 		publishedUIDs.add(456); // 500
 		
-		byte[] b = {53,53,53,53}; //5,5,5,
+		byte[] b = {48,53,48,48,48}; //0   5,0,0,0
 				
 		Model m = generateRDFModel(newModel, publishedUIDs , b);
 		
@@ -73,13 +74,32 @@ public class test {
 						"?s2 ex:type ex:ProximitySensor . " +
 						"?s1 DUL:hasDataValue ?v1 . " +
 						"?s2 DUL:hasDataValue ?v2 }";
-		
-		
+				
 		QueryExecution qexec = QueryExecutionFactory.create(Query, m) ;
 		ResultSet results = qexec.execSelect() ;
 		results = ResultSetFactory.copyResults(results);
 		
 		System.out.println(ResultSetFormatter.asText(results));
+		
+		
+		String Query2 = "PREFIX ssn: <http://www.w3.org/2005/Incubator/ssn/ssnx/ssn/> "+
+						"PREFIX DUL: <http://www.ontologydesignpatterns.org/ont/dul/DUL.owl/> " +
+						"PREFIX ex: <http://www.sensordescription.de/inrdf/> " +
+						"PREFIX foo: <http://www.example.com/>" 
+				+ "CONSTRUCT { "
+				+ " ?d foo:reading ?v }"
+				+ " WHERE "
+				+ "{"
+				+ " ?d a ssn:Sensor ."
+				+ "	?d ex:type ex:TemperatureSensor ."
+				+ " ?d DUL:hasDataValue ?v" 
+				+ " }" ;
+		
+		
+		QueryExecution qexec_2 = QueryExecutionFactory.create(Query2, m) ;
+		Model results_2 = qexec_2.execConstruct();
+		results_2.write(System.out, "ttl");
+
 	}
 	
 
@@ -160,11 +180,25 @@ public class test {
 				for(Integer x1: publishedUIDs){
 					if(x1.equals(replacingNode.uid)){										
 						//create an object to be put instead of blank node, have to identify the type too
-						// and appropriately cast it					
-						byte[] fromPayload = Arrays.copyOfRange(b, helperPayloadOffset1, helperPayloadBytes1);	
-						String contentFromPayload = new String(fromPayload);
+						// and appropriately cast it		
 						
-						Statement state = m.createLiteralStatement(statementToBeChanged.getSubject(), statementToBeChanged.getPredicate(), contentFromPayload);	
+						//hard-coded offset and bytes to read 
+						String s = null;
+						try {
+							if(x1.intValue() == 123 ){
+								s = new String(Arrays.copyOfRange(b, 0, 1), "UTF-8");	
+							
+							}
+							else if (x1.intValue() == 456 ){
+								s = new String(Arrays.copyOfRange(b, 1, 5), "UTF-8");
+							}
+						}
+						catch (UnsupportedEncodingException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+						
+						Statement state = m.createLiteralStatement(statementToBeChanged.getSubject(), statementToBeChanged.getPredicate(), s);	
 						
 						goIntoModel.add(state);
 						toBeDeleted.add(statementToBeChanged);
