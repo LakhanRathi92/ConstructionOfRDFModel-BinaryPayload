@@ -1,16 +1,14 @@
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.jena.datatypes.RDFDatatype;
-import org.apache.jena.query.QueryExecution;
-import org.apache.jena.query.QueryExecutionFactory;
-import org.apache.jena.query.ResultSet;
-import org.apache.jena.query.ResultSetFactory;
-import org.apache.jena.query.ResultSetFormatter;
+import org.apache.jena.ext.com.google.common.base.Predicate;
 import org.apache.jena.rdf.model.Literal;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.jena.rdf.model.Property;
 import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.rdf.model.Selector;
@@ -55,31 +53,13 @@ public class test {
 		
 		ArrayList<Integer> publishedUIDs = new ArrayList<Integer>();
 	
-	//	publishedUIDs.add(123); // 0
+		publishedUIDs.add(123); // 0
 		publishedUIDs.add(456); // 500
 		
-		byte[] b = {53,53,53,53}; //5,5,5,
+		byte[] b = {48,53,48,48}; //0,5,0,0
 				
 		Model m = generateRDFModel(newModel, publishedUIDs , b);
-		
-		//Execute Query 
-		String Query = "PREFIX ssn: <http://www.w3.org/2005/Incubator/ssn/ssnx/ssn/> "+
-						"PREFIX DUL: <http://www.ontologydesignpatterns.org/ont/dul/DUL.owl/> " +
-						"PREFIX ex: <http://www.sensordescription.de/inrdf/> " +
-						"SELECT ?v1 ?v2 " +
-						"WHERE {?s1 a ssn:Sensor . " +
-						"?s2 a ssn:Sensor . " +		
-						"?s1 ex:type ex:TemperatureSensor . " +
-						"?s2 ex:type ex:ProximitySensor . " +
-						"?s1 DUL:hasDataValue ?v1 . " +
-						"?s2 DUL:hasDataValue ?v2 }";
-		
-		
-		QueryExecution qexec = QueryExecutionFactory.create(Query, m) ;
-		ResultSet results = qexec.execSelect() ;
-		results = ResultSetFactory.copyResults(results);
-		
-		System.out.println(ResultSetFormatter.asText(results));
+	
 	}
 	
 
@@ -89,16 +69,24 @@ public class test {
 		//Find Blank Nodes which are FastRDF Nodes
 		Selector selector = new SimpleSelector(null, newModel.getProperty(fastRDFUidUrl), (RDFNode) null);  		
 		StmtIterator it =  newModel.listStatements(selector);				
-		ArrayList<FastRDFNode> Nodes = new ArrayList<>();
+		
 		ArrayList<Resource> BlankFastRDFNodes = new ArrayList<>();
 		
 		//Identify fastRDF Blank Nodes
 		while(it.hasNext()){
 			Statement statementWithFastRDFuid = it.nextStatement();
 			Resource Subject = statementWithFastRDFuid.getSubject();
-			BlankFastRDFNodes.add(Subject);	
+			BlankFastRDFNodes.add(Subject);		
+		}
+		it.close();
 		
-			Selector selector2 = new SimpleSelector(Subject, null, (RDFNode) null);  		
+		
+		
+		//Resolve Blank Nodes
+		ArrayList<FastRDFNode> Nodes = new ArrayList<>();
+		
+		for(Resource sub: BlankFastRDFNodes){
+			Selector selector2 = new SimpleSelector(sub, null, (RDFNode) null);  		
 			StmtIterator it2 =  newModel.listStatements(selector2);				
 			FastRDFNode fastRDFNode = new FastRDFNode();
 			
@@ -130,18 +118,16 @@ public class test {
 					}
 				}				
 				Nodes.add(fastRDFNode);
-				linker.put(Subject, fastRDFNode);				
+				linker.put(sub, fastRDFNode);				
 			}			
-			it2.close();		
+			it2.close();	
 		}
-		it.close();
 		
-	
+		
+		
 		//Replace blank nodes with data value from payload. 
 		ArrayList<Statement> goIntoModel = new ArrayList<>();
-		ArrayList<Statement> toBeDeleted = new ArrayList<>();		
-		ArrayList<Resource> updateNode = new ArrayList<>();
-		
+		ArrayList<Statement> toBeDeleted = new ArrayList<>();
 		
 		for(Resource blankNodeID: BlankFastRDFNodes){
 			Selector selector3 = new SimpleSelector(null, null, blankNodeID);  		
@@ -162,34 +148,24 @@ public class test {
 						//create an object to be put instead of blank node, have to identify the type too
 						// and appropriately cast it					
 						byte[] fromPayload = Arrays.copyOfRange(b, helperPayloadOffset1, helperPayloadBytes1);	
-						String contentFromPayload = new String(fromPayload);
-						
+						String contentFromPayload = new String(fromPayload);					
 						Statement state = m.createLiteralStatement(statementToBeChanged.getSubject(), statementToBeChanged.getPredicate(), contentFromPayload);	
-						
 						goIntoModel.add(state);
 						toBeDeleted.add(statementToBeChanged);
-						
-						updateNode.add(blankNodeID);
 					}
 				}
 				
 			}
 			it3.close();			
 		}
-				
-		//remove where object is blank node
-		newModel.remove(toBeDeleted);
 		
-		//remove updated blank nodes
-		for(Resource res: updateNode){
-			newModel.removeAll(res, null, (RDFNode) null);
-		}			
-	
+		newModel.remove(toBeDeleted);
 		newModel.add(goIntoModel);
+		
 		newModel.write(System.out, "ttl");
-
-		return newModel;
+		
+		return null;
 		
 	}
-
+	
 }
